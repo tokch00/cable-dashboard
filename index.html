@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiber Cable Installation Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f1f3f8;--bg4:#e4e8f0;
+  --blue:#3b6ef6;--blue-l:#eef2ff;--green:#16a34a;--green-l:#f0fdf4;
+  --amber:#d97706;--amber-l:#fffbeb;--red:#dc2626;--gray:#64748b;
+  --text:#111827;--text2:#374151;--text3:#9ca3af;
+  --border:#e5e7eb;--border2:#d1d5db;
+  --font:'Inter',sans-serif;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}
+.dash{padding:10px;display:flex;flex-direction:column;gap:8px;max-width:1400px;margin:0 auto}
+.editable{display:inline-block;cursor:text;border-bottom:1.5px dashed transparent;transition:all .15s;border-radius:3px;padding:0 2px;outline:none}
+.editable:hover{border-bottom-color:var(--blue);background:#eef2ff}
+.editable:focus{border-bottom-color:var(--blue);background:#e6edff;outline:none}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
+.topbar-title{font-size:13px;font-weight:600;color:var(--text)}
+.topbar-sub{font-size:10px;color:var(--text3);margin-top:1px}
+.topbar-right{display:flex;gap:6px;align-items:center}
+.btn-export{display:flex;align-items:center;gap:4px;font-size:11px;padding:5px 12px;background:var(--green);border:none;border-radius:7px;color:#fff;cursor:pointer;font-family:var(--font);font-weight:500}
+.btn-export:hover{opacity:.87}
+.btn-reset{font-size:10px;padding:5px 9px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--red);cursor:pointer;font-family:var(--font)}
+/* sync status */
+.sync-badge{display:flex;align-items:center;gap:4px;font-size:10px;padding:3px 9px;border-radius:20px;font-weight:500}
+.sync-ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.sync-saving{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
+.sync-err{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.sync-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+/* map */
+.map-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
+.map-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)}
+#map{height:340px;width:100%}
+.leg-row{display:flex;gap:10px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text3);font-weight:500}
+.leg-line{display:inline-block;width:20px;height:3px;border-radius:2px}
+/* kpi */
+.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:9px 11px;box-shadow:var(--shadow)}
+.kpi-label{font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.kpi-val{font-size:20px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi-bar{height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden}
+.kpi-fill{height:100%;border-radius:2px;transition:width .6s}
+.kpi-sub{font-size:9px;color:var(--text3);margin-top:3px}
+/* sections */
+.sec-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.section-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.btn-sm{font-size:10px;padding:3px 9px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);cursor:pointer;font-family:var(--font);font-weight:500}
+.btn-sm:hover{border-color:var(--blue);color:var(--blue)}
+.sec-divider{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;margin-bottom:5px;display:inline-block}
+.sec-divider-route{background:#e6edff;color:#3b6ef6}
+.sec-divider-site{background:#dcfae6;color:#16a34a}
+/* route cards */
+.rcard{background:#f8faff;border:1px solid #d0dbff;border-radius:9px;padding:9px 11px;box-shadow:var(--shadow)}
+.rcard+.rcard{margin-top:6px}
+.rcard-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px}
+.rcard-name{font-size:11.5px;font-weight:600;color:var(--text)}
+.rcard-meta2{font-size:9px;color:var(--text3);margin-top:1px}
+.rcard-pct{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.rbar{height:3px;background:#dce4ff;border-radius:2px;margin-bottom:5px;overflow:hidden}
+.rbar-fill{height:100%;border-radius:2px;transition:width .5s}
+.rcard-foot{display:flex;justify-content:space-between;align-items:center}
+/* site cards */
+.scard{background:#f3fdf6;border:1px solid #bbf0cc;border-radius:9px;padding:9px 11px;cursor:pointer;box-shadow:var(--shadow)}
+.scard+.scard{margin-top:6px}
+.scard-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.sicon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.sname{font-size:11.5px;font-weight:600;color:var(--text)}
+.sdesc{font-size:9px;color:var(--text3)}
+.sbar{height:3px;background:#c6edd4;border-radius:2px;margin-bottom:5px;overflow:hidden}
+/* badge */
+.badge{display:inline-flex;align-items:center;font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px}
+.b-green{background:var(--green-l);color:var(--green);border:1px solid #bbf7d0}
+.b-blue{background:var(--blue-l);color:var(--blue);border:1px solid #c7d7fd}
+.b-amber{background:var(--amber-l);color:var(--amber);border:1px solid #fde68a}
+.b-gray{background:#f9fafb;color:var(--gray);border:1px solid var(--border)}
+/* timeline */
+.tl-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow)}
+.tl-row{display:grid;grid-template-columns:90px 1fr;align-items:center;margin-bottom:4px}
+.tl-label{font-size:9px;text-align:right;padding-right:10px;font-weight:500}
+.tl-track{height:14px;background:var(--bg3);border-radius:3px;position:relative;border:1px solid var(--border)}
+.tl-bar{position:absolute;top:0;height:100%;border-radius:2px;display:flex;align-items:center;overflow:hidden}
+.tl-barlabel{font-size:8px;padding:0 5px;white-space:nowrap;color:#fff;font-weight:600}
+.tl-now{position:absolute;top:-5px;bottom:-5px;width:1.5px;background:var(--red);z-index:5}
+.tl-now::before{content:'';position:absolute;top:0;left:-2.5px;width:5px;height:5px;background:var(--red);border-radius:50%}
+/* modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(17,24,39,.35);z-index:9999;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;width:360px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.modal-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px}
+.frow{margin-bottom:10px}
+.flabel{font-size:10px;color:var(--text3);margin-bottom:4px;display:block;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.finput{width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:var(--font);outline:none;transition:border-color .15s}
+.finput:focus{border-color:var(--blue);background:var(--bg2)}
+select.finput option{background:var(--bg2)}
+.frow-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.frow-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.date-group{display:flex;flex-direction:column;gap:3px}
+.modal-btns{display:flex;gap:8px;margin-top:16px}
+.btn-save{flex:1;padding:8px;background:var(--blue);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer}
+.btn-save:hover{opacity:.88}
+.btn-cancel{padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text2);font-size:12px;font-family:var(--font);cursor:pointer;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--blue)}
+.pct-show{font-size:13px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums}
+/* toast */
+.toast{position:fixed;bottom:14px;right:14px;background:var(--text);border-radius:9px;padding:8px 14px;font-size:11px;color:#fff;opacity:0;transition:opacity .3s;z-index:99999;pointer-events:none;font-weight:500}
+.toast.show{opacity:1}
+/* loading */
+.loading-screen{position:fixed;inset:0;background:#f5f6fa;display:flex;align-items:center;justify-content:center;z-index:99999;flex-direction:column;gap:12px}
+.loading-spinner{width:36px;height:36px;border:3px solid #e5e7eb;border-top-color:#3b6ef6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--text3);font-weight:500}
+/* site label */
+.site-label-input{
+  position:absolute;font-size:10px;font-weight:600;color:var(--text2);font-family:var(--font);
+  background:rgba(255,255,255,.92);border:none;border-bottom:1.5px dashed transparent;
+  outline:none;cursor:text;text-align:center;border-radius:3px;padding:1px 4px;
+  white-space:nowrap;transition:border-color .15s,background .15s;max-width:110px;
+}
+.site-label-input:hover{border-bottom-color:var(--blue);background:#fff}
+.site-label-input:focus{border-bottom-color:var(--blue);background:#fff}
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">กำลังโหลดข้อมูลจาก Google Sheets...</div>
+</div>
+
+<div class="dash" id="app" style="display:none">
+
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">
+        <span class="editable" id="edit-title" contenteditable="true" spellcheck="false" onblur="saveLabel('title',this.textContent)">Fiber Cable Installation Dashboard</span>
+      </div>
+      <div class="topbar-sub" id="last-update">loading...</div>
+    </div>
+    <div class="topbar-right">
+      <div class="sync-badge sync-ok" id="sync-badge">
+        <span class="sync-dot" style="background:#16a34a" id="sync-dot"></span>
+        <span id="sync-text">พร้อมใช้งาน</span>
+      </div>
+      <span class="badge b-blue" id="overall-badge" style="font-size:10px;padding:3px 10px">รวม —%</span>
+      <button class="btn-export" onclick="exportExcel()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10v3h12v-3M8 2v8M5 7l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export Excel
+      </button>
+      <button class="btn-reset" onclick="resetAll()">รีเซ็ต</button>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-panel">
+    <div class="map-header">
+      <div>
+        <span class="editable" id="edit-maptitle" contenteditable="true" spellcheck="false"
+          onblur="saveLabel('maptitle',this.textContent)"
+          style="font-size:11px;font-weight:600;color:var(--text)">แผนที่เส้นทาง — Project เชียงของ</span>
+        <div style="font-size:9px;color:var(--text3);margin-top:1px">📍 คลิก marker หรือชื่อชุมสายเพื่อแก้ไข</div>
+      </div>
+      <div class="leg-row">
+        <div class="leg-item"><span class="leg-line" style="background:#22c55e"></span>เสร็จแล้ว</div>
+        <div class="leg-item"><span class="leg-line" style="background:#3b6ef6"></span>กำลังดำเนินการ</div>
+        <div class="leg-item"><span class="leg-line" style="background:#f59e0b"></span>ล่าช้า</div>
+        <div class="leg-item"><span class="leg-line" style="background:#9ca3af"></span>รอดำเนินการ</div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-strip">
+    <div class="kpi">
+      <div class="kpi-label">ความคืบหน้ารวม</div>
+      <div class="kpi-val" id="kpi-overall" style="color:var(--blue)">—%</div>
+      <div class="kpi-bar"><div class="kpi-fill" id="kpi-overall-bar" style="width:0%;background:var(--blue)"></div></div>
+      <div class="kpi-sub" id="kpi-sub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">เส้นทางเคเบิล</div>
+      <div class="kpi-val" id="kpi-routes" style="color:var(--blue)">—/4</div>
+      <div class="kpi-sub">เสร็จสิ้น</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Site ปรับปรุง</div>
+      <div class="kpi-val" id="kpi-sites" style="color:var(--green)">—/3</div>
+      <div class="kpi-sub">เสร็จสิ้น</div>
+    </div>
+  </div>
+
+  <!-- routes + sites -->
+  <div class="sec-row">
+    <div>
+      <div class="section-hd">
+        <div>
+          <div class="sec-divider sec-divider-route">🔵 เคเบิล</div>
+          <span class="editable" id="edit-routetitle" contenteditable="true" spellcheck="false"
+            onblur="saveLabel('routetitle',this.textContent)"
+            style="font-size:9px;font-weight:600;color:#3b6ef6;letter-spacing:.07em;text-transform:uppercase;display:block;margin-top:2px">เส้นทางติดตั้งเคเบิล</span>
+        </div>
+        <button class="btn-sm" onclick="openRouteModal(-1)">+ แก้ไข</button>
+      </div>
+      <div id="routes-list"></div>
+    </div>
+    <div>
+      <div class="section-hd">
+        <div>
+          <div class="sec-divider sec-divider-site">🟢 Site</div>
+          <span class="editable" id="edit-sitetitle" contenteditable="true" spellcheck="false"
+            onblur="saveLabel('sitetitle',this.textContent)"
+            style="font-size:9px;font-weight:600;color:#16a34a;letter-spacing:.07em;text-transform:uppercase;display:block;margin-top:2px">การปรับปรุง Site</span>
+        </div>
+        <button class="btn-sm" onclick="openSiteModal(-1)">+ แก้ไข</button>
+      </div>
+      <div id="sites-list"></div>
+    </div>
+  </div>
+
+  <!-- timeline -->
+  <div class="tl-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="editable" id="edit-tltitle" contenteditable="true" spellcheck="false"
+        onblur="saveLabel('tltitle',this.textContent)"
+        style="font-size:9px;font-weight:600;color:var(--text3);letter-spacing:.07em;text-transform:uppercase">Timeline โครงการ 2568</span>
+      <span style="font-size:9px;color:var(--red);display:flex;align-items:center;gap:3px;font-weight:500">
+        <span style="width:6px;height:6px;background:var(--red);border-radius:50%;display:inline-block"></span>วันนี้
+      </span>
+    </div>
+    <div id="timeline-area"></div>
+  </div>
+
+  <div style="text-align:center;padding:4px 0 8px;font-size:9px;color:var(--text3)">
+    ข้อมูลบันทึกอัตโนมัติบน Google Sheets · <span id="footer-sync">—</span>
+  </div>
+</div>
+
+<!-- Route Modal -->
+<div class="modal-overlay" id="route-modal">
+  <div class="modal">
+    <div class="modal-title" id="route-modal-title">แก้ไขเส้นทาง</div>
+    <input type="hidden" id="edit-route-idx">
+    <div class="frow"><label class="flabel">ชื่อเส้นทาง</label><input class="finput" id="r-name"></div>
+    <div class="frow-2">
+      <div class="frow"><label class="flabel">ระยะทาง (กม.)</label><input class="finput" id="r-dist" type="number"></div>
+      <div class="frow"><label class="flabel">ทีมงาน</label><input class="finput" id="r-team"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">ความคืบหน้า: <span id="r-pct-show" class="pct-show">0</span>%</label>
+      <input type="range" min="0" max="100" step="1" value="0" id="r-pct" oninput="document.getElementById('r-pct-show').textContent=this.value">
+    </div>
+    <div class="frow"><label class="flabel">สถานะ</label>
+      <select class="finput" id="r-status">
+        <option value="pending">รอดำเนินการ</option><option value="active">กำลังดำเนินการ</option>
+        <option value="done">เสร็จแล้ว</option><option value="late">ล่าช้า</option>
+      </select>
+    </div>
+    <div class="frow"><label class="flabel">วันที่เริ่มต้น</label>
+      <div class="frow-3">
+        <div class="date-group"><label class="flabel" style="font-size:9px">วัน</label><input class="finput" id="r-sd" type="number" min="1" max="31"></div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">เดือน</label>
+          <select class="finput" id="r-sm"><option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option><option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option><option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option><option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option></select>
+        </div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">ปี (พ.ศ.)</label><input class="finput" id="r-sy" type="number" placeholder="2568"></div>
+      </div>
+    </div>
+    <div class="frow"><label class="flabel">วันที่สิ้นสุด</label>
+      <div class="frow-3">
+        <div class="date-group"><label class="flabel" style="font-size:9px">วัน</label><input class="finput" id="r-ed" type="number" min="1" max="31"></div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">เดือน</label>
+          <select class="finput" id="r-em"><option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option><option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option><option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option><option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option></select>
+        </div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">ปี (พ.ศ.)</label><input class="finput" id="r-ey" type="number" placeholder="2568"></div>
+      </div>
+    </div>
+    <div class="frow"><label class="flabel">หมายเหตุ</label><input class="finput" id="r-note"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModals()">ยกเลิก</button><button class="btn-save" onclick="saveRoute()">บันทึก</button></div>
+  </div>
+</div>
+
+<!-- Site Modal -->
+<div class="modal-overlay" id="site-modal">
+  <div class="modal">
+    <div class="modal-title" id="site-modal-title">แก้ไข Site</div>
+    <input type="hidden" id="edit-site-idx">
+    <div class="frow"><label class="flabel">ชื่อ Site</label><input class="finput" id="s-name"></div>
+    <div class="frow"><label class="flabel">รายละเอียดงาน</label><input class="finput" id="s-desc"></div>
+    <div class="frow">
+      <label class="flabel">ความคืบหน้า: <span id="s-pct-show" class="pct-show">0</span>%</label>
+      <input type="range" min="0" max="100" step="1" value="0" id="s-pct" oninput="document.getElementById('s-pct-show').textContent=this.value">
+    </div>
+    <div class="frow"><label class="flabel">สถานะ</label>
+      <select class="finput" id="s-status">
+        <option value="pending">รอดำเนินการ</option><option value="active">กำลังดำเนินการ</option>
+        <option value="done">เสร็จแล้ว</option><option value="late">ล่าช้า</option>
+      </select>
+    </div>
+    <div class="frow"><label class="flabel">วันที่เริ่มต้น</label>
+      <div class="frow-3">
+        <div class="date-group"><label class="flabel" style="font-size:9px">วัน</label><input class="finput" id="s-sd" type="number" min="1" max="31"></div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">เดือน</label>
+          <select class="finput" id="s-sm"><option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option><option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option><option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option><option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option></select>
+        </div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">ปี (พ.ศ.)</label><input class="finput" id="s-sy" type="number" placeholder="2568"></div>
+      </div>
+    </div>
+    <div class="frow"><label class="flabel">วันที่สิ้นสุด</label>
+      <div class="frow-3">
+        <div class="date-group"><label class="flabel" style="font-size:9px">วัน</label><input class="finput" id="s-ed" type="number" min="1" max="31"></div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">เดือน</label>
+          <select class="finput" id="s-em"><option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option><option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option><option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option><option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option></select>
+        </div>
+        <div class="date-group"><label class="flabel" style="font-size:9px">ปี (พ.ศ.)</label><input class="finput" id="s-ey" type="number" placeholder="2568"></div>
+      </div>
+    </div>
+    <div class="frow"><label class="flabel">หมายเหตุ</label><input class="finput" id="s-note"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModals()">ยกเลิก</button><button class="btn-save" onclick="saveSite()">บันทึก</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">บันทึกสำเร็จ</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  GOOGLE SHEETS STORAGE
+// ══════════════════════════════════════════════════════
+const GS_URL = 'https://script.google.com/macros/s/AKfycbwMEH5B97wwf2IHSJsH0G83xYvRV74V6eT4pFwp37L4_noJShThOb0WgtMK9A29zwYk/exec';
+
+// JSONP with timeout fallback
+function jsonpCall(url, timeoutMs=8000) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return; done = true;
+      delete window[cbName];
+      if (s.parentNode) s.parentNode.removeChild(s);
+      reject(new Error('JSONP timeout'));
+    }, timeoutMs);
+    window[cbName] = (data) => {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      if (s.parentNode) s.parentNode.removeChild(s);
+      resolve(data);
+    };
+    const s = document.createElement('script');
+    s.src = url + '&callback=' + cbName;
+    s.onerror = () => {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      if (s.parentNode) s.parentNode.removeChild(s);
+      reject(new Error('JSONP error'));
+    };
+    document.head.appendChild(s);
+  });
+}
+
+// LocalStorage fallback cache
+const lsGet = (k) => { try { const v=localStorage.getItem(k); return v?{value:v}:null; } catch(e){return null;} };
+const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e){} };
+
+const storage = {
+  async get(key) {
+    try {
+      const data = await jsonpCall(`${GS_URL}?action=get&key=${encodeURIComponent(key)}`);
+      if (data.ok && data.value !== null) {
+        lsSet(key, data.value); // cache locally
+        return { value: data.value };
+      }
+      return lsGet(key); // fallback to local cache
+    } catch(e) {
+      console.warn('GSheets unreachable, using local cache:', e.message);
+      return lsGet(key);
+    }
+  },
+  async set(key, value) {
+    lsSet(key, value); // save locally immediately
+    try {
+      const data = await jsonpCall(`${GS_URL}?action=set&key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`);
+      return data;
+    } catch(e) {
+      console.warn('GSheets save failed, saved locally only:', e.message);
+      return { ok: false, local: true };
+    }
+  }
+};
+
+// ══════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════
+const MONTHS_TH=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const TL_START=new Date(2025,0,1), TL_END=new Date(2025,7,31);
+
+const KMZ_SITES=[
+  {lat:20.424897,lng:99.887725,defName:'SITE POI แม่สาย',color:'#7c3aed'},
+  {lat:19.910264,lng:99.835027,defName:'SITE เชียงราย',color:'#0891b2'},
+  {lat:20.219903,lng:100.405230,defName:'Site เชียงของ',color:'#3b6ef6'},
+  {lat:19.854631,lng:100.156970,defName:'Site Phaya Meng Rai',color:'#d97706'},
+  {lat:20.259054,lng:100.095008,defName:'Site Chiang Sean',color:'#16a34a'},
+];
+
+function parseRoute(raw){return raw.trim().split(/\s+/).map(c=>{const p=c.split(',');return[+p[1],+p[0]];});}
+const RAW_R1=`99.8877301452188,20.42496081942149,0 99.89453885038583,20.42377767183937,0 99.90313007699075,20.41712890281343,0 99.91160614630165,20.4115513991283,0 99.92064807119806,20.40671452804242,0 99.93153857885055,20.39670934662174,0 99.94201833851653,20.39186249327793,0 99.95097116432444,20.38370674354476,0 99.95700756302129,20.37068907826424,0 99.96133300407254,20.37002853851427,0 99.96863094618233,20.36696833994115,0 99.97779802079486,20.36526218124139,0 99.98340790232169,20.36608337826974,0 99.99044454439552,20.3669016121693,0 99.99865181587246,20.36990238920371,0 100.0007997387657,20.3665145496053,0 100.0024698383551,20.35969268449323,0 100.0064007430143,20.35981418684286,0 100.0099009649659,20.36311023088774,0 100.0150114509063,20.36415724161121,0 100.0172823489384,20.37150316194009,0 100.0240869670169,20.37181424048625,0 100.0320018383026,20.37645605938788,0 100.0389892169984,20.37465483130559,0 100.0455604810403,20.37234923386519,0 100.0519067170727,20.37233628128183,0 100.0589782682225,20.37286522799631,0 100.0660033359222,20.37254615711269,0 100.0697809210921,20.36718325449594,0 100.0738545402802,20.36548520734214,0 100.0790488259569,20.35968617825538,0 100.0826575020971,20.35260253326141,0 100.083614310036,20.34172079658434,0 100.0875724289837,20.33505373560854,0 100.0919464581823,20.32392638957735,0 100.0925083041223,20.31926050766537,0 100.0919847304831,20.31415769482808,0 100.0912893328206,20.30623215438041,0 100.0900789023124,20.2990743961405,0 100.0884607838702,20.29542135673541,0 100.0882235144518,20.28988594944842,0 100.0863203455989,20.28907358410755,0 100.0825260994926,20.28733984123009,0 100.0766702680931,20.28186291120459,0 100.0741481355934,20.2755212938401,0 100.0764720366077,20.26949612879429,0 100.0800269209454,20.26419472323048,0 100.0862324843661,20.25980575647163,0 100.0931017872492,20.26060346231075,0 100.0950046957192,20.25906307929191,0`;
+const RAW_R2=`100.0950077547721,20.25906167604783,0 100.1019315029485,20.25008174830358,0 100.1058070018245,20.24573783793022,0 100.1127085613457,20.24411987448303,0 100.1204021612233,20.2441782888544,0 100.1247752133743,20.23985787879155,0 100.1263734564138,20.23241724350093,0 100.1298505225763,20.22441192067221,0 100.1314194001936,20.22078476614346,0 100.1359930057842,20.22154149897649,0 100.1438197216557,20.22151199052528,0 100.1446798043803,20.22901141808172,0 100.1475810646614,20.23607287603955,0 100.1487669028317,20.23678335648422,0 100.1533770439601,20.23866724336339,0 100.1608410937168,20.23721576546038,0 100.1666226763552,20.24010198752749,0 100.1737742963775,20.24315136649579,0 100.1794854397425,20.25167664611946,0 100.1804552107156,20.25940406688051,0 100.1857756942688,20.26155378266207,0 100.1937694723761,20.26903933862568,0 100.2012335422547,20.27455597868645,0 100.2087858367551,20.27817188511333,0 100.2179528286515,20.28574958075019,0 100.2220740910957,20.29328584515939,0 100.2274175468348,20.30068250316037,0 100.2355914090577,20.29826976554776,0 100.2452901341528,20.30052313126046,0 100.2525599682917,20.30415628583079,0 100.2618436469170,20.30589942960925,0 100.2693723641663,20.30682203287483,0 100.2759662470846,20.31132167523975,0 100.2832672153074,20.31528459637599,0 100.2880886726061,20.32008248386072,0 100.2947769967259,20.32099989344217,0 100.3039862130634,20.32372712586381,0 100.3108440355016,20.32622329806814,0 100.3184723992719,20.33489410236291,0 100.3246341461584,20.33915456670509,0 100.3306214342569,20.34466855650572,0 100.3401516536154,20.34518288597432,0 100.3482954083645,20.34633152818852,0 100.3553463666875,20.35002412407006,0 100.3621628254907,20.35043509757288,0 100.3663610859579,20.35004313392609,0 100.3699305534351,20.34760110961611,0 100.3740033803039,20.34573657698459,0 100.3762539909119,20.33070934480613,0 100.3787497825274,20.32804730175549,0 100.3797509298109,20.3236194226222,0 100.3791480849173,20.31808288284778,0 100.3813834135936,20.31224560851788,0 100.3854612539003,20.30632650844555,0 100.3887348630992,20.29971527864998,0 100.3897441647551,20.2946648527597,0 100.3902975221338,20.2912191916117,0 100.3926608225037,20.286135274237,0 100.3963592136891,20.27922990149911,0 100.4002941812803,20.27511359443361,0 100.4051454639902,20.27453409618715,0 100.4069852567702,20.25870084855837,0 100.4102405567947,20.25296619400891,0 100.4113577712896,20.24455028886873,0 100.4089990103297,20.23869226856366,0 100.4050026848454,20.23100924017524,0 100.4033898947553,20.22448237122069,0 100.405164178129,20.21995319874402,0`;
+const RAW_R3=`100.1569747082452,19.85463957368549,0 100.1575034248623,19.8553393587135,0 100.1563566108778,19.85937526613055,0 100.1558142437526,19.86455066320213,0 100.1571804309047,19.8719716055049,0 100.1597586723085,19.87738855646142,0 100.1629751972564,19.88313768719421,0 100.1674891946728,19.8868521958068,0 100.1727836806192,19.88954719031026,0 100.1781352836878,19.89283913642562,0 100.1843270868843,19.89457940512807,0 100.1902866941356,19.89662009118109,0 100.1969101435735,19.89626083999474,0 100.2026997886238,19.90033798733069,0 100.2092728702569,19.90295946078957,0 100.2166377682807,19.90440134283751,0 100.2219531139069,19.9043149064942,0 100.2261617705499,19.91128645263792,0 100.2300991107122,19.91651428273306,0 100.2342663089344,19.92620636489405,0 100.2390682829846,19.92696111190623,0 100.2447411887178,19.93073617224061,0 100.2499372467362,19.93541119042419,0 100.2538773004209,19.93889412175631,0 100.2576801146594,19.931686529832,0 100.2624083047821,19.92547590977726,0 100.2686386324215,19.92398502560947,0 100.2751723002404,19.92299811125898,0 100.2813584270193,19.92299221225035,0 100.28638567649,19.92577590728229,0 100.2908586110738,19.92944709130738,0 100.2990943880366,19.92949905412861,0 100.3062178262098,19.92962483636845,0 100.3107223191188,19.93434378122534,0 100.3124704461041,19.93861923901917,0 100.3122058033253,19.95110576842988,0 100.3136523408205,19.95571190271436,0 100.3165128063698,19.96418403576117,0 100.3198525395693,19.9709651542944,0 100.3236018971297,19.97810551026887,0 100.3279016437856,19.98362240969337,0 100.3315558603409,19.98890203585964,0 100.3369581349862,19.99431707618188,0 100.3433381670985,20.00103517658508,0 100.3489644263417,20.00880924877492,0 100.3552802218441,20.01250886886969,0 100.3628014069643,20.02045440879397,0 100.3696978575101,20.02734303848626,0 100.3769731495559,20.03496911311485,0 100.3811646038026,20.04209348008286,0 100.3842309909682,20.05076222392539,0 100.3899763810341,20.05779184212913,0 100.3935563488536,20.06577330685975,0 100.3965817479086,20.08350786755399,0 100.3972634920547,20.08803956605643,0 100.3987193865469,20.09518650700556,0 100.4038769562897,20.10307399089549,0 100.4080971436871,20.10890798434314,0 100.4140622796259,20.11496605651788,0 100.4185599367923,20.1204801670449,0 100.4228529481312,20.12835253578999,0 100.4237155042159,20.13298452800214,0 100.4197378114960,20.13760070439956,0 100.4139805464527,20.14595621576013,0 100.4094340723992,20.15347657478907,0 100.4080626546419,20.16594732437042,0 100.4063706775408,20.17968530211468,0 100.4059071167724,20.18662735349185,0 100.4057065584763,20.18902480122669,0 100.4054788471311,20.19754545344648,0 100.4036510250930,20.20397917089106,0 100.4030067160122,20.2098664743021,0 100.4048431112844,20.2199140679325,0 100.4052079632454,20.21989391765362,0`;
+const RAW_R4=`99.83501004914959,19.91028351600938,0 99.83742335290962,19.91114421576158,0 99.84475838019898,19.90872674367517,0 99.85245809608422,19.90821786971889,0 99.85859102227484,19.90878158176018,0 99.85973738007668,19.90725888446643,0 99.85619371052336,19.89535275324582,0 99.86301904673694,19.89379332398774,0 99.86821576756292,19.89177835580808,0 99.87027086639667,19.88832624870882,0 99.87443475643495,19.88401552063706,0 99.87897879918151,19.88045575552837,0 99.88452604865,19.87865068991727,0 99.89019015378908,19.87901584945503,0 99.89347150180622,19.87594415029818,0 99.89201218670475,19.87136770263033,0 99.89333580383513,19.86807749536567,0 99.89611047624304,19.8638190429524,0 99.89744943823624,19.85934704068965,0 99.90033964974285,19.85803149854456,0 99.90663957512984,19.85943553350862,0 99.91015045944563,19.86226116058567,0 99.91411598142071,19.86196610246574,0 99.92018790147742,19.86166930368667,0 99.92271941547808,19.85842812562334,0 99.92538067760171,19.85564618427685,0 99.93034070371267,19.85389104543178,0 99.93608231917878,19.85179355567287,0 99.93891195768933,19.85313907062887,0 99.94224681078404,19.84951412459576,0 99.94717944692862,19.84828888365204,0 99.95253785602952,19.84494942750227,0 99.95844115184546,19.84339630982696,0 99.96743498260824,19.84413000131831,0 99.97193895139065,19.84575664002314,0 99.97703132726643,19.84512418604377,0 99.98655649220754,19.8430524854074,0 99.99362419444725,19.84114948481229,0 99.99651380068569,19.83949335861105,0 100.0001647798381,19.83342092964924,0 100.0064258190736,19.83110844270983,0 100.0122843805048,19.82775393021528,0 100.0200233398581,19.82593154976039,0 100.0244537898874,19.82518795649827,0 100.0293685770239,19.82937775984204,0 100.0337144612033,19.83253286576318,0 100.0378071409624,19.84308384694875,0 100.0395553203484,19.85293996103252,0 100.0408200523937,19.8588153197928,0 100.0430855199916,19.86184649225833,0 100.0503285877176,19.86652789498902,0 100.0580166802276,19.8760295983423,0 100.0678889511135,19.8847244790782,0 100.0773611251120,19.88507840519637,0 100.0887021287994,19.88918531907261,0 100.0962446244271,19.89104477998227,0 100.1078992221883,19.89094977142377,0 100.1107915656947,19.88426615016096,0 100.1150172673629,19.87613865100243,0 100.1219669352768,19.87123897871335,0 100.1249510383122,19.86684477243684,0 100.1295776029422,19.86264634940701,0 100.1339138607573,19.85677057134384,0 100.1415396700188,19.85212242317028,0 100.1482034299656,19.84849585598986,0 100.1544992375398,19.84773706001627,0 100.1566882766339,19.85424521549499,0 100.1569740844537,19.85462468740327,0`;
+const KMZ_ROUTES=[
+  {name:'แม่สาย – เชียงแสน',coords:parseRoute(RAW_R1),dist:43},
+  {name:'เชียงแสน – เชียงของ',coords:parseRoute(RAW_R2),dist:61},
+  {name:'พญาเม็งราย – เชียงของ',coords:parseRoute(RAW_R3),dist:64},
+  {name:'เชียงราย – พญาเม็งราย',coords:parseRoute(RAW_R4),dist:51},
+];
+
+const DEFAULT_ROUTES=[
+  {name:'R1 แม่สาย – เชียงแสน',dist:43,team:'ทีม A',pct:100,status:'done',sd:{d:1,m:1,y:2568},ed:{d:28,m:2,y:2568},note:''},
+  {name:'R2 เชียงแสน – เชียงของ',dist:61,team:'ทีม B',pct:75,status:'active',sd:{d:1,m:2,y:2568},ed:{d:31,m:5,y:2568},note:''},
+  {name:'R3 พญาเม็งราย – เชียงของ',dist:64,team:'ทีม C',pct:50,status:'active',sd:{d:1,m:2,y:2568},ed:{d:30,m:6,y:2568},note:''},
+  {name:'R4 เชียงราย – พญาเม็งราย',dist:51,team:'ทีม D',pct:20,status:'late',sd:{d:1,m:3,y:2568},ed:{d:31,m:8,y:2568},note:''},
+];
+const DEFAULT_SITES=[
+  {name:'Site เชียงของ',desc:'ติดตั้ง OLT',pct:80,status:'active',sd:{d:1,m:1,y:2568},ed:{d:28,m:2,y:2568},note:''},
+  {name:'Site Phaya Meng Rai',desc:'ปรับปรุง rack + UPS',pct:60,status:'active',sd:{d:1,m:2,y:2568},ed:{d:30,m:6,y:2568},note:''},
+  {name:'Site Chiang Sean',desc:'ติดตั้งระบบสายดิน',pct:40,status:'active',sd:{d:1,m:2,y:2568},ed:{d:31,m:5,y:2568},note:''},
+];
+const DEFAULT_LABELS={
+  title:'Fiber Cable Installation Dashboard',
+  maptitle:'แผนที่เส้นทาง — Project เชียงของ',
+  routetitle:'เส้นทางติดตั้งเคเบิล',
+  sitetitle:'การปรับปรุง Site',
+  tltitle:'Timeline โครงการ 2568',
+  siteNames:['SITE POI แม่สาย','SITE เชียงราย','Site เชียงของ','Site Phaya Meng Rai','Site Chiang Sean']
+};
+
+let routes, sites, labels, map, polylines=[], leafletMarkers=[], labelOverlays=[];
+
+// ── helpers ───────────────────────────────────────────
+function dateToStr(dt){return dt.d+' '+MONTHS_TH[dt.m-1]+' '+(dt.y||2568)}
+function dateToISO(dt){return new Date((dt.y||2568)-543,dt.m-1,dt.d)}
+function dateToFrac(dt){const d=dateToISO(dt);return Math.min(1,Math.max(0,(d-TL_START)/(TL_END-TL_START)))}
+function statusColor(s){return s==='done'?'#22c55e':s==='active'?'#3b6ef6':s==='late'?'#f59e0b':'#9ca3af'}
+function statusBadge(s){return s==='done'?'b-green':s==='active'?'b-blue':s==='late'?'b-amber':'b-gray'}
+function statusLabel(s){return s==='done'?'เสร็จแล้ว':s==='active'?'กำลังดำเนินการ':s==='late'?'ล่าช้า':'รอดำเนินการ'}
+
+// ── sync badge ────────────────────────────────────────
+function setSyncStatus(status, msg) {
+  const badge = document.getElementById('sync-badge');
+  const dot = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  badge.className = 'sync-badge sync-' + status;
+  dot.style.background = status==='ok'?'#16a34a':status==='saving'?'#d97706':'#dc2626';
+  text.textContent = msg;
+}
+
+// ── load ──────────────────────────────────────────────
+async function load() {
+  setSyncStatus('saving','กำลังโหลด...');
+  try {
+    const [rr, ss, ll] = await Promise.all([
+      storage.get('v8_routes'),
+      storage.get('v8_sites'),
+      storage.get('v8_labels')
+    ]);
+    routes = rr ? JSON.parse(rr.value) : DEFAULT_ROUTES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+    sites  = ss ? JSON.parse(ss.value) : DEFAULT_SITES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+    labels = ll ? JSON.parse(ll.value) : {...DEFAULT_LABELS, siteNames:[...DEFAULT_LABELS.siteNames]};
+    if (!labels.siteNames) labels.siteNames = [...DEFAULT_LABELS.siteNames];
+    setSyncStatus('ok','ซิงค์แล้ว');
+  } catch(e) {
+    routes = DEFAULT_ROUTES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+    sites  = DEFAULT_SITES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+    labels = {...DEFAULT_LABELS, siteNames:[...DEFAULT_LABELS.siteNames]};
+    setSyncStatus('err','ใช้ข้อมูลในเครื่อง (offline mode)');
+  }
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  applyLabels();
+  initMap();
+  render();
+}
+
+// ── save ──────────────────────────────────────────────
+async function saveData() {
+  setSyncStatus('saving','กำลังบันทึก...');
+  try {
+    await Promise.all([
+      storage.set('v8_routes', JSON.stringify(routes)),
+      storage.set('v8_sites', JSON.stringify(sites))
+    ]);
+    const now = new Date().toLocaleTimeString('th-TH');
+    setSyncStatus('ok','บันทึกแล้ว '+now);
+    document.getElementById('footer-sync').textContent = 'บันทึกล่าสุด '+now;
+    showToast('บันทึกสำเร็จ ✓');
+  } catch(e) {
+    setSyncStatus('err','บันทึกไม่สำเร็จ');
+    showToast('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  }
+  updateMapLines();
+  render();
+}
+
+async function saveLabel(key, val) {
+  labels[key] = val.trim() || DEFAULT_LABELS[key];
+  try { await storage.set('v8_labels', JSON.stringify(labels)); } catch(e){}
+}
+async function saveSiteName(idx, val) {
+  if (!labels.siteNames) labels.siteNames = [...DEFAULT_LABELS.siteNames];
+  labels.siteNames[idx] = val || DEFAULT_LABELS.siteNames[idx];
+  try { await storage.set('v8_labels', JSON.stringify(labels)); } catch(e){}
+}
+
+function applyLabels() {
+  ['title','maptitle','routetitle','sitetitle','tltitle'].forEach(k=>{
+    const el = document.getElementById('edit-'+k);
+    if (el) el.textContent = labels[k] || DEFAULT_LABELS[k];
+  });
+}
+
+// ── map ───────────────────────────────────────────────
+function initMap() {
+  map = L.map('map',{zoomControl:true}).setView([20.07,100.15],10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(map);
+
+  KMZ_SITES.forEach((s,i)=>{
+    const dotIcon = L.divIcon({
+      className:'',
+      html:`<div style="width:14px;height:14px;border-radius:50%;background:${s.color};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,.25)"></div>`,
+      iconSize:[14,14],iconAnchor:[7,7],popupAnchor:[0,-10]
+    });
+    const m = L.marker([s.lat,s.lng],{icon:dotIcon}).addTo(map)
+      .bindPopup(`<div style="font-family:'Inter',sans-serif"><div style="font-weight:700;font-size:12px;color:#111827;margin-bottom:2px">${labels.siteNames[i]||s.defName}</div><div style="font-size:10px;color:#9ca3af">${s.lat.toFixed(6)}, ${s.lng.toFixed(6)}</div></div>`);
+    leafletMarkers.push(m);
+
+    const labelIcon = L.divIcon({
+      className:'',
+      html:`<input class="site-label-input" id="slabel-${i}" value="${(labels.siteNames[i]||s.defName).replace(/"/g,'&quot;')}"
+        style="color:${s.color}"
+        onblur="saveSiteName(${i},this.value)"
+        onclick="event.stopPropagation()"
+        title="คลิกแก้ไขชื่อ"/>`,
+      iconSize:[120,20],iconAnchor:[60,-6]
+    });
+    L.marker([s.lat,s.lng],{icon:labelIcon,interactive:false,zIndexOffset:-100}).addTo(map);
+  });
+
+  updateMapLines();
+}
+
+function updateSiteLabelValues() {
+  KMZ_SITES.forEach((s,i)=>{
+    const el = document.getElementById('slabel-'+i);
+    if (el) el.value = labels.siteNames[i] || s.defName;
+  });
+}
+
+function updateMapLines() {
+  polylines.forEach(p=>map.removeLayer(p));
+  polylines = [];
+  KMZ_ROUTES.forEach((kr,i)=>{
+    const r = routes[i]; if (!r) return;
+    const col = statusColor(r.status);
+    const opts = {color:col, weight:3.5, opacity:.85};
+    if (r.status==='late') opts.dashArray='10 6';
+    if (r.status==='pending') opts.dashArray='4 6';
+    const poly = L.polyline(kr.coords,opts).addTo(map);
+    poly.bindPopup(`<div style="font-family:'Inter',sans-serif"><div style="font-weight:700;font-size:12px;color:#111827;margin-bottom:2px">${r.name}</div><div style="font-size:10px;color:#9ca3af">${r.dist} กม. · ${r.pct}% · ${statusLabel(r.status)}</div></div>`);
+    polylines.push(poly);
+  });
+  updateSiteLabelValues();
+}
+
+// ── render ────────────────────────────────────────────
+function render() {
+  const today = new Date();
+  const allPcts = [...routes.map(r=>r.pct), ...sites.map(s=>s.pct)];
+  const overall = Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
+  const donR = routes.filter(r=>r.pct>=100).length;
+  const donS = sites.filter(s=>s.pct>=100).length;
+
+  document.getElementById('last-update').textContent = 'อัปเดต: '+today.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  document.getElementById('overall-badge').textContent = 'รวม '+overall+'%';
+  document.getElementById('kpi-overall').textContent = overall+'%';
+  document.getElementById('kpi-overall-bar').style.width = overall+'%';
+  document.getElementById('kpi-sub').textContent = 'R: '+donR+'/'+routes.length+' · S: '+donS+'/'+sites.length;
+  document.getElementById('kpi-routes').textContent = donR+'/'+routes.length;
+  document.getElementById('kpi-sites').textContent  = donS+'/'+sites.length;
+
+  document.getElementById('routes-list').innerHTML = routes.map((r,i)=>`
+    <div class="rcard">
+      <div class="rcard-header">
+        <div>
+          <div class="rcard-name">${r.name}</div>
+          <div class="rcard-meta2">${r.dist} กม. · ${r.team} · ${dateToStr(r.sd)} – ${dateToStr(r.ed)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px">
+          <div class="rcard-pct" style="color:${statusColor(r.status)}">${r.pct}%</div>
+          <button onclick="openRouteModal(${i})" style="font-size:9px;background:none;border:none;color:var(--text3);cursor:pointer;font-family:var(--font);font-weight:500;padding:0">แก้ไข</button>
+        </div>
+      </div>
+      <div class="rbar"><div class="rbar-fill" style="width:${r.pct}%;background:${statusColor(r.status)}"></div></div>
+      <div class="rcard-foot">
+        <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+        ${r.note?`<span style="font-size:9px;color:var(--text3)">${r.note}</span>`:''}
+      </div>
+    </div>`).join('');
+
+  const sIconBg=['#ede9fe','#d1fae5','#ecfdf5'];
+  const sIconFg=['#7c3aed','#059669','#0891b2'];
+  document.getElementById('sites-list').innerHTML = sites.map((s,i)=>`
+    <div class="scard" onclick="openSiteModal(${i})">
+      <div class="scard-row">
+        <div class="sicon" style="background:${sIconBg[i%3]};color:${sIconFg[i%3]}">S${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div class="sname">${s.name}</div>
+          <div class="sdesc">${s.desc||'—'} · ${dateToStr(s.sd)} – ${dateToStr(s.ed)}</div>
+        </div>
+        <div style="flex-shrink:0;margin-left:8px;text-align:right">
+          <div style="font-size:13px;font-weight:700;color:${statusColor(s.status)};font-variant-numeric:tabular-nums">${s.pct}%</div>
+        </div>
+      </div>
+      <div class="sbar"><div class="rbar-fill" style="width:${s.pct}%;background:${statusColor(s.status)}"></div></div>
+      <div style="margin-top:4px"><span class="badge ${statusBadge(s.status)}">${statusLabel(s.status)}</span></div>
+    </div>`).join('');
+
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const today = new Date();
+  const todayPct = Math.min(100,Math.max(0,(today-TL_START)/(TL_END-TL_START)*100)).toFixed(2);
+  const rows = [
+    ...routes.map((r,i)=>({...r,label:'R'+(i+1),isRoute:true})),
+    ...sites.map((s,i)=>({...s,label:'S'+(i+1),isRoute:false}))
+  ];
+  document.getElementById('timeline-area').innerHTML = `
+    <div style="display:grid;grid-template-columns:90px repeat(8,1fr);margin-bottom:4px">
+      <div></div>${MONTHS_TH.slice(0,8).map(m=>`<div style="font-size:9px;color:var(--text3);text-align:center;font-weight:500">${m}</div>`).join('')}
+    </div>
+    ${rows.map(r=>{
+      const sf=dateToFrac(r.sd)*100, ef=dateToFrac(r.ed)*100, w=Math.max(1.5,ef-sf), c=statusColor(r.status);
+      const dash=r.status==='late'?';background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.25) 4px,rgba(255,255,255,.25) 8px)':'';
+      const trackBg = r.isRoute?'#e8edff':'#e8f7ed';
+      return `<div class="tl-row">
+        <div class="tl-label" style="color:${r.isRoute?'#3b6ef6':'#16a34a'}">${r.label}</div>
+        <div class="tl-track" style="background:${trackBg}">
+          <div class="tl-bar" style="left:${sf.toFixed(1)}%;width:${w.toFixed(1)}%;background:${c};opacity:.88${dash}">
+            <span class="tl-barlabel">${r.name.substring(0,20)}</span>
+          </div>
+          <div class="tl-now" style="left:${todayPct}%"></div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text3)"><div style="width:5px;height:5px;border-radius:50%;background:#22c55e"></div>เสร็จแล้ว</div>
+      <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text3)"><div style="width:5px;height:5px;border-radius:50%;background:#3b6ef6"></div>กำลังดำเนินการ</div>
+      <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text3)"><div style="width:5px;height:5px;border-radius:50%;background:#f59e0b"></div>ล่าช้า</div>
+      <div style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text3)"><div style="width:5px;height:5px;border-radius:50%;background:#9ca3af"></div>รอดำเนินการ</div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <div style="display:flex;align-items:center;gap:3px;font-size:9px"><div style="width:14px;height:3px;background:#3b6ef6;border-radius:1px"></div><span style="color:#3b6ef6;font-weight:600">เคเบิล</span></div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:9px"><div style="width:14px;height:3px;background:#16a34a;border-radius:1px"></div><span style="color:#16a34a;font-weight:600">Site</span></div>
+      </div>
+    </div>`;
+}
+
+// ── modals ────────────────────────────────────────────
+function openRouteModal(i) {
+  const isEdit = i>=0;
+  document.getElementById('edit-route-idx').value = i;
+  document.getElementById('route-modal-title').textContent = isEdit?'แก้ไข '+routes[i].name:'แก้ไขเส้นทาง';
+  const r = isEdit?routes[i]:{name:'',dist:'',team:'',pct:0,status:'active',sd:{d:1,m:1,y:2568},ed:{d:31,m:8,y:2568},note:''};
+  document.getElementById('r-name').value=r.name;
+  document.getElementById('r-dist').value=r.dist||'';
+  document.getElementById('r-team').value=r.team||'';
+  document.getElementById('r-pct').value=r.pct;
+  document.getElementById('r-pct-show').textContent=r.pct;
+  document.getElementById('r-status').value=r.status;
+  document.getElementById('r-sd').value=r.sd.d; document.getElementById('r-sm').value=r.sd.m; document.getElementById('r-sy').value=r.sd.y||2568;
+  document.getElementById('r-ed').value=r.ed.d; document.getElementById('r-em').value=r.ed.m; document.getElementById('r-ey').value=r.ed.y||2568;
+  document.getElementById('r-note').value=r.note||'';
+  document.getElementById('route-modal').classList.add('open');
+}
+function saveRoute() {
+  const idx = +document.getElementById('edit-route-idx').value;
+  const obj = {
+    name:document.getElementById('r-name').value||'เส้นทาง',
+    dist:+document.getElementById('r-dist').value||0,
+    team:document.getElementById('r-team').value||'—',
+    pct:+document.getElementById('r-pct').value,
+    status:document.getElementById('r-status').value,
+    sd:{d:+document.getElementById('r-sd').value||1, m:+document.getElementById('r-sm').value||1, y:+document.getElementById('r-sy').value||2568},
+    ed:{d:+document.getElementById('r-ed').value||31, m:+document.getElementById('r-em').value||8, y:+document.getElementById('r-ey').value||2568},
+    note:document.getElementById('r-note').value
+  };
+  if (idx>=0 && idx<routes.length) routes[idx]=obj;
+  closeModals(); saveData();
+}
+function openSiteModal(i) {
+  const isEdit = i>=0;
+  document.getElementById('edit-site-idx').value = i;
+  document.getElementById('site-modal-title').textContent = isEdit?'แก้ไข '+sites[i].name:'แก้ไข Site';
+  const s = isEdit?sites[i]:{name:'',desc:'',pct:0,status:'active',sd:{d:1,m:1,y:2568},ed:{d:31,m:8,y:2568},note:''};
+  document.getElementById('s-name').value=s.name;
+  document.getElementById('s-desc').value=s.desc||'';
+  document.getElementById('s-pct').value=s.pct;
+  document.getElementById('s-pct-show').textContent=s.pct;
+  document.getElementById('s-status').value=s.status;
+  document.getElementById('s-sd').value=s.sd.d; document.getElementById('s-sm').value=s.sd.m; document.getElementById('s-sy').value=s.sd.y||2568;
+  document.getElementById('s-ed').value=s.ed.d; document.getElementById('s-em').value=s.ed.m; document.getElementById('s-ey').value=s.ed.y||2568;
+  document.getElementById('s-note').value=s.note||'';
+  document.getElementById('site-modal').classList.add('open');
+}
+function saveSite() {
+  const idx = +document.getElementById('edit-site-idx').value;
+  const obj = {
+    name:document.getElementById('s-name').value||'Site',
+    desc:document.getElementById('s-desc').value||'',
+    pct:+document.getElementById('s-pct').value,
+    status:document.getElementById('s-status').value,
+    sd:{d:+document.getElementById('s-sd').value||1, m:+document.getElementById('s-sm').value||1, y:+document.getElementById('s-sy').value||2568},
+    ed:{d:+document.getElementById('s-ed').value||31, m:+document.getElementById('s-em').value||8, y:+document.getElementById('s-ey').value||2568},
+    note:document.getElementById('s-note').value
+  };
+  if (idx>=0 && idx<sites.length) sites[idx]=obj;
+  closeModals(); saveData();
+}
+function closeModals() {
+  document.getElementById('route-modal').classList.remove('open');
+  document.getElementById('site-modal').classList.remove('open');
+}
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2500);
+}
+async function resetAll() {
+  if (!confirm('รีเซ็ตข้อมูลทั้งหมดกลับค่าเริ่มต้น?')) return;
+  routes = DEFAULT_ROUTES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+  sites  = DEFAULT_SITES.map(x=>({...x,sd:{...x.sd},ed:{...x.ed}}));
+  labels = {...DEFAULT_LABELS, siteNames:[...DEFAULT_LABELS.siteNames]};
+  setSyncStatus('saving','กำลังรีเซ็ต...');
+  try {
+    await Promise.all([
+      storage.set('v8_routes', JSON.stringify(routes)),
+      storage.set('v8_sites',  JSON.stringify(sites)),
+      storage.set('v8_labels', JSON.stringify(labels))
+    ]);
+    setSyncStatus('ok','รีเซ็ตสำเร็จ');
+  } catch(e) { setSyncStatus('err','รีเซ็ตไม่สำเร็จ'); }
+  applyLabels(); updateMapLines(); render();
+  showToast('รีเซ็ตสำเร็จ');
+}
+function exportExcel() {
+  if (typeof XLSX==='undefined'){showToast('กำลังโหลด...');setTimeout(exportExcel,800);return;}
+  const wb = XLSX.utils.book_new();
+  const rWS = XLSX.utils.aoa_to_sheet([
+    ['#','ชื่อเส้นทาง','ระยะทาง (กม.)','ทีมงาน','ความคืบหน้า (%)','สถานะ','วันเริ่ม','วันสิ้นสุด','หมายเหตุ'],
+    ...routes.map((r,i)=>[i+1,r.name,r.dist,r.team,r.pct/100,statusLabel(r.status),dateToStr(r.sd),dateToStr(r.ed),r.note||''])
+  ]);
+  rWS['!cols']=[{wch:4},{wch:30},{wch:14},{wch:12},{wch:16},{wch:18},{wch:18},{wch:18},{wch:20}];
+  routes.forEach((_,i)=>{const c='E'+(i+2);if(rWS[c])rWS[c].z='0%';});
+  XLSX.utils.book_append_sheet(wb,rWS,'เส้นทางเคเบิล');
+  const sWS = XLSX.utils.aoa_to_sheet([
+    ['#','ชื่อ Site','รายละเอียด','Latitude','Longitude','ความคืบหน้า (%)','สถานะ','วันเริ่ม','วันสิ้นสุด'],
+    ...sites.map((s,i)=>[i+1,s.name,s.desc,KMZ_SITES[i+2]?.lat||'',KMZ_SITES[i+2]?.lng||'',s.pct/100,statusLabel(s.status),dateToStr(s.sd),dateToStr(s.ed)])
+  ]);
+  sWS['!cols']=[{wch:4},{wch:24},{wch:24},{wch:14},{wch:14},{wch:16},{wch:18},{wch:18},{wch:18}];
+  sites.forEach((_,i)=>{const c='F'+(i+2);if(sWS[c])sWS[c].z='0%';});
+  XLSX.utils.book_append_sheet(wb,sWS,'ปรับปรุง Site');
+  const today=new Date();
+  const allPcts=[...routes.map(r=>r.pct),...sites.map(s=>s.pct)];
+  const overall=Math.round(allPcts.reduce((a,b)=>a+b,0)/allPcts.length);
+  const sumWS = XLSX.utils.aoa_to_sheet([
+    ['วันที่รายงาน',today.toLocaleDateString('th-TH')],
+    ['ความคืบหน้ารวม',overall+'%'],
+    ['เส้นทางเสร็จ',routes.filter(r=>r.pct>=100).length+'/'+routes.length],
+    ['Site เสร็จ',sites.filter(s=>s.pct>=100).length+'/'+sites.length]
+  ]);
+  sumWS['!cols']=[{wch:22},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,sumWS,'สรุปโครงการ');
+  XLSX.writeFile(wb,'dashboard_'+today.toISOString().slice(0,10)+'.xlsx');
+  showToast('Export Excel สำเร็จ');
+}
+
+document.getElementById('route-modal').addEventListener('click',e=>{if(e.target.id==='route-modal')closeModals()});
+document.getElementById('site-modal').addEventListener('click',e=>{if(e.target.id==='site-modal')closeModals()});
+load();
+</script>
+</body>
+</html>
